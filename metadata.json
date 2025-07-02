@@ -1,0 +1,8 @@
+{
+  "name": "Reflex English",
+  "description": "An application to help you practice English speaking skills in various real-life scenarios using AI conversation partners.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "prompt": ""
+}
