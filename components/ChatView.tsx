@@ -12,6 +12,7 @@ import { SettingsIcon } from './icons/SettingsIcon';
 import LoadingSpinner from './icons/LoadingSpinner';
 import ShowEyeIcon from './icons/ShowEyeIcon';
 import HideEyeIcon from './icons/HideEyeIcon';
+import TranslateIcon from './icons/TranslateIcon';
 
 interface ChatViewProps {
   scenario: Scenario;
@@ -29,10 +30,18 @@ const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
   const [showSuggestions, setShowSuggestions] = useState(true);
   const hasStarted = useRef(false);
   const [partialAiMessage, setPartialAiMessage] = useState<string | null>(null);
+  const [translatingMsgId, setTranslatingMsgId] = useState<string | null>(null);
+  const [pendingTranscript, setPendingTranscript] = useState<string | null>(null);
 
-  const handleTranscript = useCallback(async (transcript: string) => {
+  const handleTranscript = useCallback((transcript: string) => {
+    setPendingTranscript(transcript);
+  }, []);
+
+  const handleSendTranscript = useCallback(async () => {
+    if (!pendingTranscript) return;
+    setPendingTranscript(null);
     if (isAiTyping) return;
-
+    const transcript = pendingTranscript;
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       sender: MessageSender.User,
@@ -42,7 +51,6 @@ const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
     setMessages(prev => [...prev, userMessage]);
     setIsAiTyping(true);
     setPartialAiMessage(null);
-
     // Streaming AI response
     let finalReply = '';
     let finalSuggestions: string[] = [];
@@ -83,13 +91,12 @@ const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
       msg.id === aiMsgId ? { ...msg, text: finalReply, suggestions: finalSuggestions } : msg
     ));
     speak(finalReply);
-
     // Update user message with feedback when ready
     const feedback = await geminiService.getPronunciationFeedback(transcript);
     setMessages(prev => prev.map(msg =>
       msg.id === userMessage.id ? { ...msg, pronunciationFeedback: feedback } : msg
     ));
-  }, [isAiTyping, scenario.title, messages]);
+  }, [isAiTyping, scenario.title, messages, pendingTranscript]);
 
   const { 
     isListening, 
@@ -149,6 +156,16 @@ const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
     setHelpContent(content);
     setIsHelpLoading(false);
   };
+
+  const handleTranslate = async (msgId: string, text: string) => {
+    setTranslatingMsgId(msgId);
+    try {
+      const translation = await geminiService.translateToVietnamese(text);
+      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, translation } : m));
+    } finally {
+      setTranslatingMsgId(null);
+    }
+  };
   
   return (
     <div className="flex flex-col h-screen bg-slate-100 dark:bg-slate-900">
@@ -182,6 +199,8 @@ const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
               onSpeak={speak}
               showSuggestions={showSuggestions}
               onToggleSuggestions={msg.sender === MessageSender.AI ? () => setShowSuggestions(v => !v) : undefined}
+              onTranslate={msg.sender === MessageSender.AI ? () => handleTranslate(msg.id, msg.text) : undefined}
+              isTranslating={translatingMsgId === msg.id}
             />
           ))}
           {isAiTyping && partialAiMessage && (
@@ -199,16 +218,38 @@ const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
       <footer className="bg-white dark:bg-slate-800/50 backdrop-blur-sm p-4 border-t border-slate-200 dark:border-slate-700">
         <div className="max-w-3xl mx-auto flex items-center justify-center gap-4">
           <div className="w-28 hidden md:block"></div> {/* Spacer left, hidden on mobile */}
-          <button
-            onClick={isListening ? stopListening : startListening}
-            disabled={!isSupported || isAiTyping}
-            className={`w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 ease-in-out text-white shadow-lg
-              ${isListening ? 'bg-red-500 animate-pulse' : 'bg-blue-500 hover:bg-blue-600'}
-              ${!isSupported || isAiTyping ? 'bg-slate-300 dark:bg-slate-600 cursor-not-allowed' : ''}`}
-            aria-label={isListening ? 'Stop listening' : 'Start listening'}
-          >
-            {isAiTyping ? <LoadingSpinner className="w-8 h-8" /> : <MicrophoneIcon className="w-8 h-8"/>}
-          </button>
+          {pendingTranscript ? (
+            <div className="flex flex-col items-center w-full max-w-md mx-auto">
+              <div className="mb-2 p-3 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 text-base w-full text-center">
+                "{pendingTranscript}"
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSendTranscript}
+                  className="px-4 py-2 rounded-lg bg-blue-500 text-white font-semibold hover:bg-blue-600 transition-colors shadow"
+                >
+                  Gửi
+                </button>
+                <button
+                  onClick={() => setPendingTranscript(null)}
+                  className="px-4 py-2 rounded-lg bg-slate-300 dark:bg-slate-600 text-slate-800 dark:text-slate-200 font-semibold hover:bg-slate-400 dark:hover:bg-slate-500 transition-colors shadow"
+                >
+                  Hủy
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={isListening ? stopListening : startListening}
+              disabled={!isSupported || isAiTyping}
+              className={`w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 ease-in-out text-white shadow-lg
+                ${isListening ? 'bg-red-500 animate-pulse' : 'bg-blue-500 hover:bg-blue-600'}
+                ${!isSupported || isAiTyping ? 'bg-slate-300 dark:bg-slate-600 cursor-not-allowed' : ''}`}
+              aria-label={isListening ? 'Stop listening' : 'Start listening'}
+            >
+              {isAiTyping ? <LoadingSpinner className="w-8 h-8" /> : <MicrophoneIcon className="w-8 h-8"/>}
+            </button>
+          )}
           <div className="w-28 hidden md:block"></div> {/* Spacer right, hidden on mobile */}
         </div>
         {!isSupported && <p className="text-center text-xs text-red-500 mt-2">Speech recognition is not supported by your browser.</p>}

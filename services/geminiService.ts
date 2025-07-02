@@ -191,6 +191,24 @@ Reply concisely. Also suggest 3 short, natural English sentences the user could 
       suggestions: Array.isArray(parsed.suggestions) ? parsed.suggestions : [],
     };
   }
+
+  public async translateToVietnamese(text: string): Promise<string> {
+    try {
+      const prompt = `Dịch đoạn văn sau sang tiếng Việt, giữ văn phong tự nhiên, không giải thích gì thêm:\n${text}`;
+      const response = await this.ai.models.generateContent({
+        model: 'gemini-1.5-flash',
+        contents: prompt,
+        config: {
+          responseMimeType: 'text/plain',
+          temperature: 0.3,
+        },
+      });
+      return response.text.trim();
+    } catch (error) {
+      console.error('Error translating to Vietnamese:', error);
+      return '';
+    }
+  }
 }
 
 export const geminiService = new GeminiService();

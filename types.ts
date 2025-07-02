@@ -10,6 +10,7 @@ export interface ChatMessage {
   text: string;
   pronunciationFeedback?: string | null;
   suggestions?: string[];
+  translation?: string;
 }
 
 export interface Scenario {
