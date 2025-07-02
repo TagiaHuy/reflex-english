@@ -9,6 +9,7 @@ export interface ChatMessage {
   sender: MessageSender;
   text: string;
   pronunciationFeedback?: string | null;
+  suggestions?: string[];
 }
 
 export interface Scenario {

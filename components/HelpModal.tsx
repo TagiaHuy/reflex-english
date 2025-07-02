@@ -14,9 +14,9 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, content, isLoadi
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-start p-4" onClick={onClose}>
       <div 
-        className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg mx-auto p-6 md:p-8 transform transition-all"
+        className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg mx-auto p-6 md:p-8 transform transition-all max-h-screen overflow-y-auto"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-6">

@@ -11,8 +11,7 @@ const MicrophoneIcon: React.FC<IconProps> = ({ className }) => (
     fill="currentColor"
     className={className}
   >
-    <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3ZM11 5v6a1 1 0 0 1-2 0V5a1 1 0 1 1 2 0Zm4 0v6a1 1 0 1 1-2 0V5a1 1 0 1 1 2 0Z" />
-    <path d="M12 18.5a5.5 5.5 0 0 1-5.5-5.5V12h1.47a.5.5 0 0 1 .5.5v.5a3.53 3.53 0 0 0 7.06 0v-.5a.5.5 0 0 1 .5-.5H17.5v1a5.5 5.5 0 0 1-5.5 5.5Z" />
+    <path d="M12 14a3 3 0 0 0 3-3V7a3 3 0 0 0-6 0v4a3 3 0 0 0 3 3zm5-3a1 1 0 1 1 2 0 7 7 0 0 1-14 0 1 1 0 1 1 2 0 5 5 0 0 0 10 0zM11 19h2v2a1 1 0 1 1-2 0v-2z" />
   </svg>
 );
 

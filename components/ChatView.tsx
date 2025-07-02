@@ -10,6 +10,8 @@ import MicrophoneIcon from './icons/MicrophoneIcon';
 import HelpIcon from './icons/HelpIcon';
 import { SettingsIcon } from './icons/SettingsIcon';
 import LoadingSpinner from './icons/LoadingSpinner';
+import ShowEyeIcon from './icons/ShowEyeIcon';
+import HideEyeIcon from './icons/HideEyeIcon';
 
 interface ChatViewProps {
   scenario: Scenario;
@@ -24,6 +26,8 @@ const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
   const [helpContent, setHelpContent] = useState<HelpContent | null>(null);
   const [isHelpLoading, setIsHelpLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const [showSuggestions, setShowSuggestions] = useState(true);
+  const hasStarted = useRef(false);
 
   const handleTranscript = useCallback(async (transcript: string) => {
     if (isAiTyping) return;
@@ -43,6 +47,20 @@ const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
       geminiService.getPronunciationFeedback(transcript)
     ]);
 
+    // Get suggestions for the AI response
+    let suggestions: string[] = [];
+    try {
+      const helpContent = await geminiService.getHelpContent(
+        messages.concat({ sender: MessageSender.User, text: transcript, id: '', pronunciationFeedback: null }).slice(-4).map(m => `${m.sender}: ${m.text}`).join('\n'),
+        scenario.title
+      );
+      if (helpContent && helpContent.sampleSentences) {
+        suggestions = helpContent.sampleSentences;
+      }
+    } catch (e) {
+      // ignore help errors
+    }
+
     setIsAiTyping(false);
 
     // Update user message with feedback
@@ -54,6 +72,7 @@ const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
       id: (Date.now() + 1).toString(),
       sender: MessageSender.AI,
       text: aiResponse,
+      suggestions,
     };
     setMessages(prev => [...prev, aiMessage]);
     speak(aiResponse);
@@ -71,6 +90,8 @@ const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
   } = useSpeech(handleTranscript);
   
   useEffect(() => {
+    if (hasStarted.current) return;
+    hasStarted.current = true;
     const startConversation = async () => {
       geminiService.startChat(scenario.systemPrompt);
       const welcomeMessage: ChatMessage = {
@@ -78,19 +99,33 @@ const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
         sender: MessageSender.System,
         text: `You've started the "${scenario.title}" scenario. The AI will now introduce itself.`,
       };
-      setMessages([welcomeMessage]);
       setIsAiTyping(true);
 
       const firstResponse = await geminiService.sendMessage("Hello! Please start the conversation by introducing yourself based on your assigned role.");
       
+      // Get suggestions for the first AI response
+      let suggestions: string[] = [];
+      try {
+        const helpContent = await geminiService.getHelpContent(
+          `AI: ${firstResponse}`,
+          scenario.title
+        );
+        if (helpContent && helpContent.sampleSentences) {
+          suggestions = helpContent.sampleSentences;
+        }
+      } catch (e) {
+        // ignore help errors
+      }
+
       const aiMessage: ChatMessage = {
           id: (Date.now() + 1).toString(),
           sender: MessageSender.AI,
           text: firstResponse,
+          suggestions,
       };
       
       setIsAiTyping(false);
-      setMessages(prev => [...prev, aiMessage]);
+      setMessages([welcomeMessage, aiMessage]);
       speak(firstResponse);
     };
 
@@ -138,7 +173,13 @@ const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
       <main className="flex-1 overflow-y-auto p-4 md:p-6">
         <div className="max-w-3xl mx-auto">
           {messages.map((msg) => (
-            <Message key={msg.id} message={msg} onSpeak={speak} />
+            <Message
+              key={msg.id}
+              message={msg}
+              onSpeak={speak}
+              showSuggestions={showSuggestions}
+              onToggleSuggestions={msg.sender === MessageSender.AI ? () => setShowSuggestions(v => !v) : undefined}
+            />
           ))}
           {isAiTyping && (
              <div className="flex items-end gap-2 my-2 justify-start">
@@ -158,9 +199,7 @@ const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
 
       <footer className="bg-white dark:bg-slate-800/50 backdrop-blur-sm p-4 border-t border-slate-200 dark:border-slate-700">
         <div className="max-w-3xl mx-auto flex items-center justify-center gap-4">
-          <p className="text-sm text-center text-slate-500 dark:text-slate-400 w-28 hidden md:block">
-            {isListening ? 'Listening...' : (isSupported ? 'Click to speak' : 'Unsupported')}
-          </p>
+          <div className="w-28 hidden md:block"></div> {/* Spacer left, hidden on mobile */}
           <button
             onClick={isListening ? stopListening : startListening}
             disabled={!isSupported || isAiTyping}
@@ -171,7 +210,7 @@ const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
           >
             {isAiTyping ? <LoadingSpinner className="w-8 h-8" /> : <MicrophoneIcon className="w-8 h-8"/>}
           </button>
-          <div className="w-28"></div> {/* Spacer */}
+          <div className="w-28 hidden md:block"></div> {/* Spacer right, hidden on mobile */}
         </div>
         {!isSupported && <p className="text-center text-xs text-red-500 mt-2">Speech recognition is not supported by your browser.</p>}
       </footer>
