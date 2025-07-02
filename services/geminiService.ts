@@ -103,7 +103,7 @@ Reply concisely. Also suggest 3 short, natural English sentences the user could 
 
     try {
       const response = await this.ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-04-17",
+        model: 'gemini-1.5-flash',
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -136,7 +136,7 @@ Reply concisely. Also suggest 3 short, natural English sentences the user could 
 
     try {
       const response = await this.ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-04-17",
+        model: 'gemini-1.5-flash',
         contents: prompt,
         config: {
           responseMimeType: "application/json",

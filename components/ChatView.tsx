@@ -29,13 +29,23 @@ const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [showSuggestions, setShowSuggestions] = useState(true);
   const hasStarted = useRef(false);
-  const [partialAiMessage, setPartialAiMessage] = useState<string | null>(null);
   const [translatingMsgId, setTranslatingMsgId] = useState<string | null>(null);
   const [pendingTranscript, setPendingTranscript] = useState<string | null>(null);
 
   const handleTranscript = useCallback((transcript: string) => {
     setPendingTranscript(transcript);
   }, []);
+
+  const {
+    isListening,
+    isSupported,
+    startListening,
+    stopListening,
+    speak,
+    voices,
+    selectedVoiceURI,
+    selectVoice
+  } = useSpeech(handleTranscript);
 
   const handleSendTranscript = useCallback(async () => {
     if (!pendingTranscript) return;
@@ -50,65 +60,30 @@ const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
     };
     setMessages(prev => [...prev, userMessage]);
     setIsAiTyping(true);
-    setPartialAiMessage(null);
-    // Streaming AI response
-    let finalReply = '';
-    let finalSuggestions: string[] = [];
-    let aiMsgId = (Date.now() + 1).toString();
-    let firstChunk = true;
-    for await (const chunk of geminiService.sendMessageStream(
+
+    // Get full AI response (no streaming)
+    const aiResult = await geminiService.sendMessage(
       transcript,
       scenario.title,
       messages.concat({ sender: MessageSender.User, text: transcript, id: '', pronunciationFeedback: null }).slice(-4).map(m => `${m.sender}: ${m.text}`).join('\n')
-    )) {
-      setPartialAiMessage(chunk.partial);
-      if (chunk.done) {
-        finalReply = chunk.reply || chunk.partial;
-        finalSuggestions = chunk.suggestions || [];
-      }
-      // On first chunk, add a placeholder AI message
-      if (firstChunk) {
-        setMessages(prev => [
-          ...prev,
-          {
-            id: aiMsgId,
-            sender: MessageSender.AI,
-            text: '',
-            suggestions: [],
-          }
-        ]);
-        firstChunk = false;
-      }
-      // Update the placeholder message with the latest partial
-      setMessages(prev => prev.map(msg =>
-        msg.id === aiMsgId ? { ...msg, text: chunk.partial } : msg
-      ));
-    }
+    );
+    const aiMessage: ChatMessage = {
+      id: (Date.now() + 1).toString(),
+      sender: MessageSender.AI,
+      text: aiResult.reply,
+      suggestions: aiResult.suggestions,
+    };
+    setMessages(prev => [...prev, aiMessage]);
     setIsAiTyping(false);
-    setPartialAiMessage(null);
-    // Update the AI message with the final reply and suggestions
-    setMessages(prev => prev.map(msg =>
-      msg.id === aiMsgId ? { ...msg, text: finalReply, suggestions: finalSuggestions } : msg
-    ));
-    speak(finalReply);
+    speak(aiResult.reply, selectedVoiceURI || undefined);
+
     // Update user message with feedback when ready
     const feedback = await geminiService.getPronunciationFeedback(transcript);
     setMessages(prev => prev.map(msg =>
       msg.id === userMessage.id ? { ...msg, pronunciationFeedback: feedback } : msg
     ));
-  }, [isAiTyping, scenario.title, messages, pendingTranscript]);
+  }, [isAiTyping, scenario.title, messages, pendingTranscript, selectedVoiceURI]);
 
-  const { 
-    isListening, 
-    isSupported, 
-    startListening, 
-    stopListening, 
-    speak,
-    voices,
-    selectedVoiceURI,
-    selectVoice
-  } = useSpeech(handleTranscript);
-  
   useEffect(() => {
     if (hasStarted.current) return;
     hasStarted.current = true;
@@ -136,7 +111,7 @@ const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
       
       setIsAiTyping(false);
       setMessages([welcomeMessage, aiMessage]);
-      speak(aiResult.reply);
+      speak(aiResult.reply, selectedVoiceURI || undefined);
     };
 
     startConversation();
@@ -203,14 +178,6 @@ const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
               isTranslating={translatingMsgId === msg.id}
             />
           ))}
-          {isAiTyping && partialAiMessage && (
-            <div className="flex items-end gap-2 my-2 justify-start">
-              <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center font-bold text-slate-500 dark:text-slate-300 flex-shrink-0">AI</div>
-              <div className="px-4 py-3 rounded-2xl bg-slate-100 dark:bg-slate-700 rounded-bl-lg">
-                <span className="text-base text-slate-800 dark:text-slate-200">{partialAiMessage}</span>
-              </div>
-            </div>
-          )}
           <div ref={chatEndRef} />
         </div>
       </main>
@@ -267,7 +234,7 @@ const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
         voices={voices}
         selectedVoiceURI={selectedVoiceURI}
         onSelectVoice={selectVoice}
-        onPreviewVoice={speak}
+        onPreviewVoice={(text, uri) => speak(text, uri || undefined)}
       />
     </div>
   );
