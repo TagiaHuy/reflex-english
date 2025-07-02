@@ -1,5 +1,6 @@
 import React from 'react';
 import SpeakerIcon from './icons/SpeakerIcon';
+import { setGeminiModel, getGeminiModel } from '../services/geminiService';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -13,6 +14,13 @@ interface SettingsModalProps {
 const PREVIEW_TEXT = "The quick brown fox jumps over the lazy dog.";
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, voices, selectedVoiceURI, onSelectVoice, onPreviewVoice }) => {
+  const [model, setModel] = React.useState<string>(getGeminiModel());
+
+  const handleModelChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setModel(e.target.value);
+    setGeminiModel(e.target.value as 'gemini-1.5-flash' | 'gemini-2.5-flash-preview-04-17');
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -23,12 +31,24 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, voices, 
         style={{maxHeight: '90vh'}}
       >
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Voice Settings</h2>
+          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Voice & Model Settings</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
           </button>
         </div>
-        
+        <div className="mb-4">
+          <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-2">Gemini Model</label>
+          <div className="flex gap-4">
+            <label className="flex items-center gap-2">
+              <input type="radio" name="gemini-model" value="gemini-1.5-flash" checked={model === 'gemini-1.5-flash'} onChange={handleModelChange} />
+              <span>Gemini 1.5 Flash (Nhanh)</span>
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="radio" name="gemini-model" value="gemini-2.5-flash-preview-04-17" checked={model === 'gemini-2.5-flash-preview-04-17'} onChange={handleModelChange} />
+              <span>Gemini 2.5 Flash (Thông minh)</span>
+            </label>
+          </div>
+        </div>
         <div className="space-y-2 overflow-y-auto pr-2 flex-grow">
           {voices.length > 0 ? voices.map(voice => (
             <div 
@@ -59,7 +79,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, voices, 
             <p className="text-slate-500 dark:text-slate-400 text-center py-4">No English voices found in your browser.</p>
           )}
         </div>
-
         <div className="mt-6 flex justify-end pt-4 border-t border-slate-200 dark:border-slate-700">
             <button onClick={onClose} className="px-6 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700">Done</button>
         </div>

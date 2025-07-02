@@ -4,6 +4,7 @@ import type { HelpContent } from '../types';
 class GeminiService {
   private ai: GoogleGenAI;
   private chat: Chat | null = null;
+  private model: string = 'gemini-1.5-flash';
 
   constructor() {
     if (!process.env.API_KEY) {
@@ -12,9 +13,17 @@ class GeminiService {
     this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   }
 
+  public setModel(model: 'gemini-1.5-flash' | 'gemini-2.5-flash-preview-04-17') {
+    this.model = model;
+  }
+
+  public getModel(): string {
+    return this.model;
+  }
+
   public startChat(systemPrompt: string): void {
     this.chat = this.ai.chats.create({
-      model: 'gemini-1.5-flash',
+      model: this.model,
       config: {
         systemInstruction: systemPrompt,
         temperature: 0.5,
@@ -103,7 +112,7 @@ Reply concisely. Also suggest 3 short, natural English sentences the user could 
 
     try {
       const response = await this.ai.models.generateContent({
-        model: 'gemini-1.5-flash',
+        model: this.model,
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -136,7 +145,7 @@ Reply concisely. Also suggest 3 short, natural English sentences the user could 
 
     try {
       const response = await this.ai.models.generateContent({
-        model: 'gemini-1.5-flash',
+        model: this.model,
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -196,7 +205,7 @@ Reply concisely. Also suggest 3 short, natural English sentences the user could 
     try {
       const prompt = `Dịch đoạn văn sau sang tiếng Việt, giữ văn phong tự nhiên, không giải thích gì thêm:\n${text}`;
       const response = await this.ai.models.generateContent({
-        model: 'gemini-1.5-flash',
+        model: this.model,
         contents: prompt,
         config: {
           responseMimeType: 'text/plain',
@@ -212,3 +221,5 @@ Reply concisely. Also suggest 3 short, natural English sentences the user could 
 }
 
 export const geminiService = new GeminiService();
+export const setGeminiModel = (model: 'gemini-1.5-flash' | 'gemini-2.5-flash-preview-04-17') => geminiService.setModel(model);
+export const getGeminiModel = () => geminiService.getModel();
