@@ -13,28 +13,49 @@ class GeminiService {
   }
 
   public startChat(systemPrompt: string): void {
-    const enhancedPrompt = `${systemPrompt}\n\n**Important Rule:** Fully embody your character. If details like your name, age, or specific opinions are not in your description, you MUST invent them to make your character feel real. Do not be generic or use placeholders.`;
-
     this.chat = this.ai.chats.create({
-      model: 'gemini-2.5-flash-preview-04-17',
+      model: 'gemini-1.5-flash',
       config: {
-        systemInstruction: enhancedPrompt,
-        temperature: 0.8,
-        topP: 0.9,
+        systemInstruction: systemPrompt,
+        temperature: 0.5,
+        topP: 0.8,
       },
     });
   }
 
-  public async sendMessage(message: string): Promise<string> {
+  public async sendMessage(message: string, scenarioTitle?: string, chatHistory?: string): Promise<{ reply: string, suggestions: string[] }> {
     if (!this.chat) {
       throw new Error("Chat not initialized. Call startChat first.");
     }
     try {
-      const response: GenerateContentResponse = await this.chat.sendMessage({ message });
-      return response.text;
+      const prompt = `
+Reply as a natural English conversation partner in the scenario: "${scenarioTitle || ''}".
+Recent chat:
+${chatHistory || ''}
+
+Reply concisely. Also suggest 3 short, natural English sentences the user could say next. Respond in JSON:
+{"reply": "<your reply>", "suggestions": ["suggestion 1", "suggestion 2", "suggestion 3"]}
+`;
+      const response: GenerateContentResponse = await this.chat.sendMessage({ message: prompt });
+      let jsonStr = response.text.trim();
+      const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
+      const match = jsonStr.match(fenceRegex);
+      if (match && match[2]) {
+        jsonStr = match[2].trim();
+      }
+      let parsed;
+      try {
+        parsed = JSON.parse(jsonStr);
+      } catch (e) {
+        return { reply: response.text, suggestions: [] };
+      }
+      return {
+        reply: parsed.reply || response.text,
+        suggestions: Array.isArray(parsed.suggestions) ? parsed.suggestions : [],
+      };
     } catch (error) {
       console.error("Error sending message to Gemini:", error);
-      return "I'm sorry, I'm having a little trouble responding right now. Could you please try again?";
+      return { reply: "I'm sorry, I'm having a little trouble responding right now. Could you please try again?", suggestions: [] };
     }
   }
 
@@ -66,7 +87,6 @@ class GeminiService {
       3. "pronunciationFocus": An object with two keys: "sentence" (one of the sample sentences) and "explanation" (a brief tip on its pronunciation, like linking sounds or stress).
 
       Example Response:
-      \`\`\`json
       {
         "sampleSentences": [
           "That's a good point, I hadn't thought of it that way.",
@@ -79,7 +99,6 @@ class GeminiService {
           "explanation": "Try linking the words 'thought' and 'of', and 'of' and 'it'. It sounds like 'thought-of-it'."
         }
       }
-      \`\`\`
     `;
 
     try {
@@ -106,17 +125,13 @@ class GeminiService {
       Respond with a JSON object containing a single key "feedback".
 
       Example for "I want to order one latte.":
-      \`\`\`json
       {
         "feedback": "Great start! For 'latte', try putting the stress on the first part: 'LAH-tay'. You're doing great!"
       }
-      \`\`\`
        Example for "Tell me about yourself.":
-      \`\`\`json
       {
         "feedback": "Excellent question! Remember to make the 'our' in 'yourself' sound like 'er' for a more natural flow: 'yer-SELF'."
       }
-      \`\`\`
     `;
 
     try {
@@ -134,6 +149,47 @@ class GeminiService {
       console.error("Error getting pronunciation feedback:", error);
       return null;
     }
+  }
+
+  public async *sendMessageStream(message: string, scenarioTitle?: string, chatHistory?: string): AsyncGenerator<{ partial: string, done: boolean, reply?: string, suggestions?: string[] }, void, unknown> {
+    if (!this.chat) {
+      throw new Error("Chat not initialized. Call startChat first.");
+    }
+    // Short, efficient prompt for fast, concise replies
+    const prompt = `
+Reply as a natural English conversation partner in the scenario: "${scenarioTitle || ''}".
+Recent chat:
+${chatHistory || ''}
+
+Reply concisely. Also suggest 3 short, natural English sentences the user could say next. Respond in JSON:
+{"reply": "<your reply>", "suggestions": ["suggestion 1", "suggestion 2", "suggestion 3"]}
+`;
+    let fullText = '';
+    const stream = await this.chat.sendMessageStream({ message: prompt });
+    for await (const chunk of stream) {
+      fullText += chunk.text;
+      yield { partial: fullText, done: false };
+    }
+    // Try to parse the JSON from the full text
+    let jsonStr = fullText.trim();
+    const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
+    const match = jsonStr.match(fenceRegex);
+    if (match && match[2]) {
+      jsonStr = match[2].trim();
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonStr);
+    } catch (e) {
+      yield { partial: fullText, done: true, reply: fullText, suggestions: [] };
+      return;
+    }
+    yield {
+      partial: fullText,
+      done: true,
+      reply: parsed.reply || fullText,
+      suggestions: Array.isArray(parsed.suggestions) ? parsed.suggestions : [],
+    };
   }
 }
 
