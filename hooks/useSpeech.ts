@@ -22,19 +22,24 @@ export const useSpeech = (onTranscriptReady: (transcript: string) => void) => {
       const availableVoices = window.speechSynthesis.getVoices()
         .filter(voice => voice.lang.startsWith('en'))
         .sort((a, b) => a.name.localeCompare(b.name));
-      
       setVoices(availableVoices);
 
       if (availableVoices.length > 0) {
-          const currentVoiceIsValid = selectedVoiceURI && availableVoices.some(v => v.voiceURI === selectedVoiceURI);
-          if (!currentVoiceIsValid) {
-              const defaultVoice = availableVoices.find(v => v.default) || availableVoices[0];
-              if (defaultVoice) {
-                  const newURI = defaultVoice.voiceURI;
-                  setSelectedVoiceURI(newURI);
-                  localStorage.setItem(PREFERRED_VOICE_KEY, newURI);
-              }
+        // Nếu selectedVoiceURI hợp lệ thì giữ nguyên, nếu không thì fallback
+        const currentVoiceIsValid = selectedVoiceURI && availableVoices.some(v => v.voiceURI === selectedVoiceURI);
+        if (!currentVoiceIsValid) {
+          const storedVoiceURI = localStorage.getItem(PREFERRED_VOICE_KEY);
+          const storedVoiceIsValid = storedVoiceURI && availableVoices.some(v => v.voiceURI === storedVoiceURI);
+          if (storedVoiceIsValid) {
+            setSelectedVoiceURI(storedVoiceURI!);
+          } else {
+            const defaultVoice = availableVoices.find(v => v.default) || availableVoices[0];
+            if (defaultVoice) {
+              setSelectedVoiceURI(defaultVoice.voiceURI);
+              localStorage.setItem(PREFERRED_VOICE_KEY, defaultVoice.voiceURI);
+            }
           }
+        }
       }
     };
 
@@ -48,10 +53,8 @@ export const useSpeech = (onTranscriptReady: (transcript: string) => void) => {
         window.speechSynthesis.onvoiceschanged = null;
       }
     };
-    // The empty dependency array is correct here because we want this to run once and set up the listener.
-    // The listener will handle subsequent updates to the voice list.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [selectedVoiceURI]);
 
   useEffect(() => {
     if (SpeechRecognition) {

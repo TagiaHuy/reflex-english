@@ -1,19 +1,51 @@
 import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
 import type { HelpContent } from '../types';
 
+// Danh sách các model hỗ trợ
+export const GEMINI_MODELS = [
+  { value: 'gemini-2.5-flash-lite-preview-06-17', label: 'Gemini 2.5 Flash-Lite Preview 06-17 (Miễn phí, tiết kiệm)' },
+  { value: 'gemini-2.5-flash-preview-04-17', label: 'Gemini 2.5 Flash (Miễn phí, nhanh)' },
+  { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (Miễn phí, thông minh nhất)' },
+  { value: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash-Lite (Miễn phí)' },
+  { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Miễn phí)' },
+  { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash (Cũ)' },
+  // Thêm model mới tại đây nếu muốn
+];
+
+// Danh sách các API key mặc định
+export const GEMINI_API_KEYS = [
+  'AIzaSyBk3rP0TW0qzcw0ntK5dLoS0XKrtxEoMZk',
+  'AIzaSyDwiMaECbXn9hBW2CXsUgn8MQzgVZgSvOM',
+  'AIzaSyAfHv6EakHjE4bLkdSYD2GtyWR4rR3FtPo',
+];
+const API_KEY_STORAGE = 'reflex-english-gemini-api-key';
+
+function getInitialApiKey() {
+  return localStorage.getItem(API_KEY_STORAGE) || GEMINI_API_KEYS[0];
+}
+
 class GeminiService {
   private ai: GoogleGenAI;
-  private chat: Chat | null = null;
-  private model: string = 'gemini-1.5-flash';
+  private chat: Chat | null = null; 
+  private model: string = GEMINI_MODELS[0].value; 
+  private apiKey: string;
 
   constructor() {
-    if (!process.env.API_KEY) {
-      throw new Error("API_KEY is not configured in environment variables.");
-    }
-    this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    this.apiKey = getInitialApiKey();
+    this.ai = new GoogleGenAI({ apiKey: this.apiKey });
   }
 
-  public setModel(model: 'gemini-1.5-flash' | 'gemini-2.5-flash-preview-04-17') {
+  public setApiKey(newKey: string) {
+    this.apiKey = newKey;
+    localStorage.setItem(API_KEY_STORAGE, newKey);
+    this.ai = new GoogleGenAI({ apiKey: newKey });
+  }
+
+  public getApiKey(): string {
+    return this.apiKey;
+  }
+
+  public setModel(model: string) {
     this.model = model;
   }
 
@@ -46,7 +78,7 @@ Reply concisely. Also suggest 3 short, natural English sentences the user could 
 {"reply": "<your reply>", "suggestions": ["suggestion 1", "suggestion 2", "suggestion 3"]}
 `;
       const response: GenerateContentResponse = await this.chat.sendMessage({ message: prompt });
-      let jsonStr = response.text.trim();
+      let jsonStr = (response.text ?? '').trim();
       const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
       const match = jsonStr.match(fenceRegex);
       if (match && match[2]) {
@@ -56,10 +88,10 @@ Reply concisely. Also suggest 3 short, natural English sentences the user could 
       try {
         parsed = JSON.parse(jsonStr);
       } catch (e) {
-        return { reply: response.text, suggestions: [] };
+        return { reply: response.text ?? '', suggestions: [] };
       }
       return {
-        reply: parsed.reply || response.text,
+        reply: parsed.reply || (response.text ?? ''),
         suggestions: Array.isArray(parsed.suggestions) ? parsed.suggestions : [],
       };
     } catch (error) {
@@ -86,29 +118,16 @@ Reply concisely. Also suggest 3 short, natural English sentences the user could 
 
   public async getHelpContent(chatHistory: string, scenarioTitle: string): Promise<HelpContent | null> {
     const prompt = `
-      The user is practicing an English conversation for the scenario: "${scenarioTitle}".
-      Here is the recent chat history:
-      ${chatHistory}
+Bạn là trợ lý luyện nói tiếng Anh. Dựa trên hội thoại sau về chủ đề "${scenarioTitle}":
+${chatHistory}
 
-      The user is stuck and needs help. Provide helpful content in a JSON object format. The JSON object should have three keys:
-      1. "sampleSentences": An array of 3 distinct, natural-sounding sentences the user could say next.
-      2. "grammarTip": A short, simple grammar tip related to the conversation.
-      3. "pronunciationFocus": An object with two keys: "sentence" (one of the sample sentences) and "explanation" (a brief tip on its pronunciation, like linking sounds or stress).
+Trả về JSON với 3 trường:
+- "sampleSentences": 3 câu tiếng Anh tự nhiên mà người học có thể nói tiếp.
+- "grammarTip": 1 mẹo ngữ pháp ngắn gọn liên quan hội thoại.
+- "pronunciationFocus": object gồm "sentence" (1 câu trong sampleSentences) và "explanation" (mẹo phát âm ngắn).
 
-      Example Response:
-      {
-        "sampleSentences": [
-          "That's a good point, I hadn't thought of it that way.",
-          "Could you tell me a little more about that?",
-          "I'm not sure, what do you think?"
-        ],
-        "grammarTip": "Remember to use 'a' before a consonant sound and 'an' before a vowel sound, like 'a good point' or 'an interesting idea'.",
-        "pronunciationFocus": {
-          "sentence": "I hadn't thought of it that way.",
-          "explanation": "Try linking the words 'thought' and 'of', and 'of' and 'it'. It sounds like 'thought-of-it'."
-        }
-      }
-    `;
+Chỉ trả về JSON, không giải thích thêm.
+`;
 
     try {
       const response = await this.ai.models.generateContent({
@@ -116,10 +135,10 @@ Reply concisely. Also suggest 3 short, natural English sentences the user could 
         contents: prompt,
         config: {
           responseMimeType: "application/json",
-          temperature: 0.5,
+          temperature: 0.3,
         },
       });
-      const parsedJson = this.parseJsonFromResponse(response.text);
+      const parsedJson = this.parseJsonFromResponse(response.text ?? '');
       return parsedJson as HelpContent;
     } catch (error) {
       console.error("Error getting help content:", error);
@@ -152,7 +171,7 @@ Reply concisely. Also suggest 3 short, natural English sentences the user could 
           temperature: 0.3,
         },
       });
-      const parsedJson = this.parseJsonFromResponse(response.text);
+      const parsedJson = this.parseJsonFromResponse(response.text ?? '');
       return parsedJson?.feedback || null;
     } catch (error) {
       console.error("Error getting pronunciation feedback:", error);
@@ -212,7 +231,7 @@ Reply concisely. Also suggest 3 short, natural English sentences the user could 
           temperature: 0.3,
         },
       });
-      return response.text.trim();
+      return (response.text ?? '').trim();
     } catch (error) {
       console.error('Error translating to Vietnamese:', error);
       return '';
@@ -221,5 +240,5 @@ Reply concisely. Also suggest 3 short, natural English sentences the user could 
 }
 
 export const geminiService = new GeminiService();
-export const setGeminiModel = (model: 'gemini-1.5-flash' | 'gemini-2.5-flash-preview-04-17') => geminiService.setModel(model);
+export const setGeminiModel = (model: string) => geminiService.setModel(model);
 export const getGeminiModel = () => geminiService.getModel();
