@@ -186,22 +186,31 @@ const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
         <div className="max-w-3xl mx-auto flex items-center justify-center gap-4">
           <div className="w-28 hidden md:block"></div> {/* Spacer left, hidden on mobile */}
           {pendingTranscript ? (
-            <div className="flex flex-col items-center w-full max-w-md mx-auto">
-              <div className="mb-2 p-3 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 text-base w-full text-center">
-                "{pendingTranscript}"
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleSendTranscript}
-                  className="px-4 py-2 rounded-lg bg-blue-500 text-white font-semibold hover:bg-blue-600 transition-colors shadow"
+            <div className="flex items-center w-full max-w-md mx-auto">
+              <div
+                className="flex flex-row items-center flex-1 p-3 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 text-base cursor-pointer select-none hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors"
+                title="Click to re-record or send"
+              >
+                <span
+                  className="flex-1 text-center"
+                  onClick={() => {
+                    setPendingTranscript(null);
+                    startListening();
+                  }}
                 >
-                  Gửi
-                </button>
+                  "{pendingTranscript}"
+                </span>
                 <button
-                  onClick={() => setPendingTranscript(null)}
-                  className="px-4 py-2 rounded-lg bg-slate-300 dark:bg-slate-600 text-slate-800 dark:text-slate-200 font-semibold hover:bg-slate-400 dark:hover:bg-slate-500 transition-colors shadow"
+                  onClick={e => {
+                    e.stopPropagation();
+                    handleSendTranscript();
+                  }}
+                  className="ml-2 p-2 rounded-full bg-blue-500 text-white hover:bg-blue-600 transition-colors shadow flex items-center justify-center"
+                  title="Send"
                 >
-                  Hủy
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" />
+                  </svg>
                 </button>
               </div>
             </div>
