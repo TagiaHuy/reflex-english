@@ -237,6 +237,41 @@ Reply concisely. Also suggest 3 short, natural English sentences the user could 
       return '';
     }
   }
+
+  public async generateRandomScenarioAI(): Promise<{ title: string, emoji: string, description: string, systemPrompt: string } | null> {
+    const prompt = `
+Hãy tạo ngẫu nhiên một ngữ cảnh hội thoại thực tế để luyện nói tiếng Anh. Trả về JSON với 4 trường:
+- "title": tiêu đề ngắn gọn cho ngữ cảnh (tiếng Anh)
+- "emoji": 1 emoji phù hợp
+- "description": mô tả ngắn về ngữ cảnh (tiếng Anh)
+- "systemPrompt": hướng dẫn AI đóng vai phù hợp (tiếng Anh, cụ thể, tự nhiên)
+Chỉ trả về JSON, không giải thích thêm.
+`;
+    try {
+      const response = await this.ai.models.generateContent({
+        model: this.model,
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          temperature: 0.9,
+        },
+      });
+      const parsedJson = this.parseJsonFromResponse(response.text ?? '');
+      if (
+        parsedJson &&
+        typeof parsedJson.title === 'string' &&
+        typeof parsedJson.emoji === 'string' &&
+        typeof parsedJson.description === 'string' &&
+        typeof parsedJson.systemPrompt === 'string'
+      ) {
+        return parsedJson;
+      }
+      return null;
+    } catch (error) {
+      console.error("Error generating random scenario:", error);
+      return null;
+    }
+  }
 }
 
 export const geminiService = new GeminiService();

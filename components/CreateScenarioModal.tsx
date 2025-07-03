@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import type { Scenario } from '../types';
 import PlusIcon from './icons/PlusIcon';
+import DiceIcon from './icons/DiceIcon';
+import { geminiService } from '../services/geminiService';
 
 interface CreateScenarioModalProps {
   isOpen: boolean;
@@ -14,6 +16,61 @@ const CreateScenarioModal: React.FC<CreateScenarioModalProps> = ({ isOpen, onClo
   const [description, setDescription] = useState('');
   const [systemPrompt, setSystemPrompt] = useState('');
   const [error, setError] = useState('');
+  const [loadingAI, setLoadingAI] = useState(false);
+  const [aiError, setAiError] = useState('');
+
+  const randomScenarios = [
+    {
+      title: 'Ordering Coffee',
+      emoji: '☕',
+      description: 'Practice ordering coffee at a café.',
+      systemPrompt: 'You are a friendly barista at a busy coffee shop. The user is a customer. Greet them, take their order, and make small talk.'
+    },
+    {
+      title: 'Job Interview',
+      emoji: '💼',
+      description: 'Simulate a job interview for an office position.',
+      systemPrompt: 'You are an HR manager interviewing the user for an office job. Ask about their experience, skills, and why they want the job.'
+    },
+    {
+      title: 'At the Airport',
+      emoji: '✈️',
+      description: 'Practice asking for help at an airport.',
+      systemPrompt: 'You are an airport staff member. The user is a traveler who needs help finding their gate and understanding announcements.'
+    },
+    {
+      title: 'Making a Doctor Appointment',
+      emoji: '🩺',
+      description: 'Practice making a doctor appointment over the phone.',
+      systemPrompt: 'You are a clinic receptionist. The user wants to book a doctor appointment. Ask for their details and suggest available times.'
+    },
+    {
+      title: 'Hotel Check-in',
+      emoji: '🏨',
+      description: 'Practice checking in at a hotel.',
+      systemPrompt: 'You are a hotel front desk clerk. The user is checking in. Greet them, confirm their reservation, and explain hotel amenities.'
+    },
+  ];
+
+  const surpriseMe = async () => {
+    setLoadingAI(true);
+    setAiError('');
+    try {
+      const aiScenario = await geminiService.generateRandomScenarioAI();
+      if (aiScenario) {
+        setTitle(aiScenario.title);
+        setEmoji(aiScenario.emoji);
+        setDescription(aiScenario.description);
+        setSystemPrompt(aiScenario.systemPrompt);
+        setError('');
+      } else {
+        setAiError('Could not generate scenario. Please try again.');
+      }
+    } catch (e) {
+      setAiError('Could not generate scenario. Please try again.');
+    }
+    setLoadingAI(false);
+  };
 
   if (!isOpen) return null;
 
@@ -43,9 +100,24 @@ const CreateScenarioModal: React.FC<CreateScenarioModalProps> = ({ isOpen, onClo
       >
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Create New Scenario</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={surpriseMe}
+              className="p-2 rounded-full bg-blue-100 hover:bg-blue-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-blue-600 dark:text-blue-200 transition-colors shadow"
+              title="Surprise Me! Generate a random scenario"
+              disabled={loadingAI}
+            >
+              {loadingAI ? (
+                <svg className="w-6 h-6 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg>
+              ) : (
+                <DiceIcon className="w-6 h-6" />
+              )}
+            </button>
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+          </div>
         </div>
         
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -100,6 +172,7 @@ const CreateScenarioModal: React.FC<CreateScenarioModalProps> = ({ isOpen, onClo
           </div>
           
           {error && <p className="text-sm text-red-500">{error}</p>}
+          {aiError && <div className="text-xs text-red-500 mt-1 text-right">{aiError}</div>}
 
           <div className="flex justify-end pt-4">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm hover:bg-slate-50 dark:hover:bg-slate-600">Cancel</button>
