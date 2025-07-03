@@ -141,6 +141,15 @@ const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
       setTranslatingMsgId(null);
     }
   };
+
+  // Hàm xử lý gửi lại (reset)
+  const handleResendLastUserMessage = () => {
+    setMessages(prev => prev.slice(0, -2));
+    setTimeout(() => {
+      setPendingTranscript(null);
+      startListening();
+    }, 0);
+  };
   
   return (
     <div className="flex flex-col h-screen bg-slate-100 dark:bg-slate-900">
@@ -167,7 +176,7 @@ const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
 
       <main className="flex-1 overflow-y-auto p-4 md:p-6">
         <div className="max-w-3xl mx-auto">
-          {messages.map((msg) => (
+          {messages.map((msg, idx) => (
             <Message
               key={msg.id}
               message={msg}
@@ -176,6 +185,8 @@ const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
               onToggleSuggestions={msg.sender === MessageSender.AI ? () => setShowSuggestions(v => !v) : undefined}
               onTranslate={msg.sender === MessageSender.AI ? () => handleTranslate(msg.id, msg.text) : undefined}
               isTranslating={translatingMsgId === msg.id}
+              isLastUserMessage={msg.sender === MessageSender.User && idx === messages.length - 2}
+              onResendLastUserMessage={handleResendLastUserMessage}
             />
           ))}
           <div ref={chatEndRef} />

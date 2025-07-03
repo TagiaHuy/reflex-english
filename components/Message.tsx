@@ -4,6 +4,7 @@ import SpeakerIcon from './icons/SpeakerIcon';
 import ShowEyeIcon from './icons/ShowEyeIcon';
 import HideEyeIcon from './icons/HideEyeIcon';
 import TranslateIcon from './icons/TranslateIcon';
+import ResetIcon from './icons/ResetIcon';
 
 interface MessageProps {
   message: ChatMessage;
@@ -12,9 +13,11 @@ interface MessageProps {
   showSuggestions?: boolean;
   onTranslate?: () => void;
   isTranslating?: boolean;
+  isLastUserMessage?: boolean;
+  onResendLastUserMessage?: () => void;
 }
 
-const Message: React.FC<MessageProps> = ({ message, onSpeak, onToggleSuggestions, showSuggestions, onTranslate, isTranslating }) => {
+const Message: React.FC<MessageProps> = ({ message, onSpeak, onToggleSuggestions, showSuggestions, onTranslate, isTranslating, isLastUserMessage, onResendLastUserMessage }) => {
   const isUser = message.sender === MessageSender.User;
   const isAI = message.sender === MessageSender.AI;
   const isSystem = message.sender === MessageSender.System;
@@ -34,12 +37,22 @@ const Message: React.FC<MessageProps> = ({ message, onSpeak, onToggleSuggestions
           AI
         </div>
       )}
-      <div className={`max-w-xs md:max-w-md lg:max-w-lg px-4 py-3 rounded-2xl ${
+      <div className={`relative max-w-xs md:max-w-md lg:max-w-lg px-4 py-3 rounded-2xl ${
         isUser
           ? 'bg-blue-500 text-white rounded-br-lg'
           : 'bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-bl-lg'
       }`}>
         <p className="text-base">{message.text}</p>
+        {isUser && isLastUserMessage && onResendLastUserMessage && (
+          <button
+            onClick={onResendLastUserMessage}
+            className="absolute bottom-2 right-2 p-1 rounded-full bg-transparent hover:bg-blue-600 text-white opacity-100 hover:opacity-100 transition-colors"
+            title="Resend / Reset to previous"
+            style={{ boxShadow: '0 2px 8px 0 rgba(0,0,0,0.08)' }}
+          >
+            <ResetIcon className="w-3 h-3 text-white" />
+          </button>
+        )}
         {isAI && (
           <div className="flex items-center gap-2 mt-2">
             <button 
