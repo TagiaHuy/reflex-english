@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { TextToSpeech } from '@capacitor-community/text-to-speech';
+import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 
 // Polyfill for cross-browser compatibility.
 // Using 'any' to avoid potential conflicts with custom type definitions in some environments.
-const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+const WebSpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 const PREFERRED_VOICE_KEY = 'reflex-english-preferred-voice';
 
 export const useSpeech = (onTranscriptReady: (transcript: string) => void) => {
@@ -10,22 +13,21 @@ export const useSpeech = (onTranscriptReady: (transcript: string) => void) => {
   const [isSupported, setIsSupported] = useState(false);
   const recognitionRef = useRef<any | null>(null);
 
-  // New states for synthesis
+  // Web voices only
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoiceURI, setSelectedVoiceURI] = useState<string | null>(localStorage.getItem(PREFERRED_VOICE_KEY));
   const [isSpeaking, setIsSpeaking] = useState(false);
 
-  // Load voices
+  // --- Web Speech API (browser) ---
   useEffect(() => {
+    if (Capacitor.isNativePlatform()) return; // Bỏ qua trên mobile
     const loadVoices = () => {
       if (!('speechSynthesis' in window)) return;
       const availableVoices = window.speechSynthesis.getVoices()
         .filter(voice => voice.lang.startsWith('en'))
         .sort((a, b) => a.name.localeCompare(b.name));
       setVoices(availableVoices);
-
       if (availableVoices.length > 0) {
-        // Nếu selectedVoiceURI hợp lệ thì giữ nguyên, nếu không thì fallback
         const currentVoiceIsValid = selectedVoiceURI && availableVoices.some(v => v.voiceURI === selectedVoiceURI);
         if (!currentVoiceIsValid) {
           const storedVoiceURI = localStorage.getItem(PREFERRED_VOICE_KEY);
@@ -42,12 +44,10 @@ export const useSpeech = (onTranscriptReady: (transcript: string) => void) => {
         }
       }
     };
-
     if ('speechSynthesis' in window) {
       loadVoices();
       window.speechSynthesis.onvoiceschanged = loadVoices;
     }
-
     return () => {
       if ('speechSynthesis' in window) {
         window.speechSynthesis.onvoiceschanged = null;
@@ -56,14 +56,18 @@ export const useSpeech = (onTranscriptReady: (transcript: string) => void) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedVoiceURI]);
 
+  // --- Speech Recognition (browser) ---
   useEffect(() => {
-    if (SpeechRecognition) {
+    if (Capacitor.isNativePlatform()) {
+      setIsSupported(true); // Luôn hỗ trợ trên mobile
+      return;
+    }
+    if (WebSpeechRecognition) {
       setIsSupported(true);
-      const recognition = new SpeechRecognition();
+      const recognition = new WebSpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = false;
       recognition.lang = 'en-US';
-
       recognition.onresult = (event: any) => {
         const lastResultIndex = event.results.length - 1;
         const transcript = event.results[lastResultIndex][0].transcript.trim();
@@ -72,16 +76,13 @@ export const useSpeech = (onTranscriptReady: (transcript: string) => void) => {
         }
         recognition.stop();
       };
-
       recognition.onend = () => {
         setIsListening(false);
       };
-
       recognition.onerror = (event: any) => {
         console.error('Speech recognition error:', event.error);
         setIsListening(false);
       };
-
       recognitionRef.current = recognition;
     } else {
       setIsSupported(false);
@@ -89,67 +90,143 @@ export const useSpeech = (onTranscriptReady: (transcript: string) => void) => {
     }
   }, [onTranscriptReady]);
 
+  // --- Voice selection (web only) ---
   const selectVoice = useCallback((voiceURI: string) => {
     setSelectedVoiceURI(voiceURI);
     localStorage.setItem(PREFERRED_VOICE_KEY, voiceURI);
   }, []);
 
-  const startListening = useCallback(() => {
-    if (recognitionRef.current && !isListening) {
+  // --- Start/Stop Listening ---
+  const startListening = useCallback(async () => {
+    if (Capacitor.isNativePlatform()) {
       try {
-        // Stop any speech before listening
-        if (window.speechSynthesis.speaking) {
-          window.speechSynthesis.cancel();
+        const perm = await SpeechRecognition.checkPermissions();
+        if (perm.speechRecognition !== 'granted') {
+          const req = await SpeechRecognition.requestPermissions();
+          if (req.speechRecognition !== 'granted') {
+            alert('Microphone permission denied.');
+            return;
+          }
         }
-        recognitionRef.current.start();
         setIsListening(true);
-      } catch (error) {
-        console.error("Error starting recognition:", error);
+        await SpeechRecognition.start({
+          language: 'en-US',
+          maxResults: 1,
+          prompt: '',
+          partialResults: true,
+          popup: false
+        });
+        // Kết quả sẽ nhận qua addListener bên dưới
+      } catch (err) {
+        setIsListening(false);
+        alert('Cannot start speech recognition: ' + err);
       }
-    }
-  }, [isListening]);
-
-  const stopListening = useCallback(() => {
-    if (recognitionRef.current && isListening) {
-      recognitionRef.current.stop();
-    }
-  }, [isListening]);
-
-  const speak = useCallback((text: string, voiceURI?: string) => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      
-      const utterance = new SpeechSynthesisUtterance(text);
-      
-      const voiceToUseURI = voiceURI || selectedVoiceURI;
-      const selectedVoice = voices.find(v => v.voiceURI === voiceToUseURI);
-      
-      if (selectedVoice) {
-        utterance.voice = selectedVoice;
-        utterance.lang = selectedVoice.lang;
-      } else {
-        utterance.lang = 'en-US';
-        console.warn(`Voice with URI ${voiceToUseURI} not found. Using browser default for lang ${utterance.lang}.`);
-      }
-
-      utterance.rate = 1;
-      utterance.pitch = 1;
-      
-      utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = (e: SpeechSynthesisErrorEvent) => {
-        // Don't log an error if speech was simply cancelled or interrupted by another call.
-        if (e.error !== 'canceled' && e.error !== 'interrupted') {
-          console.error("Speech synthesis error:", e.error);
-        }
-        setIsSpeaking(false);
-      };
-      
-      window.speechSynthesis.speak(utterance);
     } else {
-      console.warn("Speech synthesis not supported in this browser.");
+      if (recognitionRef.current && !isListening) {
+        try {
+          if (window.speechSynthesis.speaking) {
+            window.speechSynthesis.cancel();
+          }
+          recognitionRef.current.start();
+          setIsListening(true);
+        } catch (error) {
+          console.error("Error starting recognition:", error);
+        }
+      }
+    }
+  }, [isListening]);
+
+  // Lắng nghe kết quả speech-to-text native
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const handler = SpeechRecognition.addListener('partialResults', (data: any) => {
+      console.log('partialResults', data);
+      setIsListening(false);
+      if (data.matches && data.matches.length > 0) {
+        onTranscriptReady(data.matches[0]);
+      }
+    });
+    return () => {
+      handler.then(h => h.remove());
+    };
+  }, [onTranscriptReady]);
+
+  const stopListening = useCallback(async () => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await SpeechRecognition.stop();
+        setIsListening(false);
+      } catch (err) {
+        setIsListening(false);
+        alert('Cannot stop recognition: ' + err);
+      }
+    } else {
+      if (recognitionRef.current && isListening) {
+        recognitionRef.current.stop();
+      }
+    }
+  }, [isListening]);
+
+  // --- Speak (Text-to-Speech) ---
+  const speak = useCallback(async (text: string, voiceURI?: string) => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await TextToSpeech.speak({
+          text,
+          lang: 'en-US',
+          rate: 1.0,
+          pitch: 1.0,
+          volume: 1.0,
+          category: 'ambient'
+        });
+        setIsSpeaking(false);
+      } catch (err) {
+        setIsSpeaking(false);
+        alert('Cannot speak: ' + err);
+      }
+    } else {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        const voiceToUseURI = voiceURI || selectedVoiceURI;
+        const selectedVoice = voices.find(v => v.voiceURI === voiceToUseURI);
+        if (selectedVoice) {
+          utterance.voice = selectedVoice;
+          utterance.lang = selectedVoice.lang;
+        } else {
+          utterance.lang = 'en-US';
+          console.warn(`Voice with URI ${voiceToUseURI} not found. Using browser default for lang ${utterance.lang}.`);
+        }
+        utterance.rate = 1;
+        utterance.pitch = 1;
+        utterance.onstart = () => setIsSpeaking(true);
+        utterance.onend = () => setIsSpeaking(false);
+        utterance.onerror = (e: SpeechSynthesisErrorEvent) => {
+          if (e.error !== 'canceled' && e.error !== 'interrupted') {
+            console.error("Speech synthesis error:", e.error);
+          }
+          setIsSpeaking(false);
+        };
+        window.speechSynthesis.speak(utterance);
+      } else {
+        console.warn("Speech synthesis not supported in this browser.");
+      }
     }
   }, [selectedVoiceURI, voices]);
 
-  return { isListening, isSupported, startListening, stopListening, speak, voices, selectedVoiceURI, selectVoice, isSpeaking };
+  // Trên mobile không hỗ trợ chọn voice, trả về mảng rỗng và null
+  const mobileVoices = Capacitor.isNativePlatform() ? [] : voices;
+  const mobileSelectedVoiceURI = Capacitor.isNativePlatform() ? null : selectedVoiceURI;
+
+  return {
+    isListening,
+    isSupported,
+    startListening,
+    stopListening,
+    speak,
+    voices: mobileVoices,
+    selectedVoiceURI: mobileSelectedVoiceURI,
+    selectVoice,
+    isSpeaking
+  };
 };
