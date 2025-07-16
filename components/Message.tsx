@@ -15,9 +15,10 @@ interface MessageProps {
   isTranslating?: boolean;
   isLastUserMessage?: boolean;
   onResendLastUserMessage?: () => void;
+  onRequestMoreSuggestions?: () => void;
 }
 
-const Message: React.FC<MessageProps> = ({ message, onSpeak, onToggleSuggestions, showSuggestions, onTranslate, isTranslating, isLastUserMessage, onResendLastUserMessage }) => {
+const Message: React.FC<MessageProps> = ({ message, onSpeak, onToggleSuggestions, showSuggestions, onTranslate, isTranslating, isLastUserMessage, onResendLastUserMessage, onRequestMoreSuggestions }) => {
   const isUser = message.sender === MessageSender.User;
   const isAI = message.sender === MessageSender.AI;
   const isSystem = message.sender === MessageSender.System;
@@ -82,12 +83,24 @@ const Message: React.FC<MessageProps> = ({ message, onSpeak, onToggleSuggestions
               {showSuggestions ? <ShowEyeIcon className="w-5 h-5" /> : <HideEyeIcon className="w-5 h-5" />}
             </button>
             {showSuggestions && message.suggestions && message.suggestions.length > 0 && (
-              <div className="flex flex-wrap gap-1">
+              <div className="flex flex-wrap gap-1 items-center">
                 {message.suggestions.map((s, idx) => (
                   <span key={idx} className="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 text-xs px-2 py-0.5 rounded-full">
                     {s}
                   </span>
                 ))}
+                {onRequestMoreSuggestions && (
+                  <button
+                    type="button"
+                    className="ml-1 p-1 rounded-full bg-blue-200 dark:bg-blue-800 hover:bg-blue-300 dark:hover:bg-blue-700 text-blue-700 dark:text-blue-200 transition-colors flex items-center justify-center"
+                    aria-label="More suggestions"
+                    onClick={onRequestMoreSuggestions}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                  </button>
+                )}
               </div>
             )}
           </div>

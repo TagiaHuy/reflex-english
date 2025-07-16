@@ -13,13 +13,16 @@ import LoadingSpinner from './icons/LoadingSpinner';
 import ShowEyeIcon from './icons/ShowEyeIcon';
 import HideEyeIcon from './icons/HideEyeIcon';
 import TranslateIcon from './icons/TranslateIcon';
+import BookIcon from './icons/BookIcon';
+import StoryModal from './StoryModal';
 
 interface ChatViewProps {
   scenario: Scenario;
   onExit: () => void;
+  onBackToHome: () => void;
 }
 
-const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
+const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit, onBackToHome }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isAiTyping, setIsAiTyping] = useState(false);
   const [isHelpModalOpen, setHelpModalOpen] = useState(false);
@@ -31,6 +34,10 @@ const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
   const hasStarted = useRef(false);
   const [translatingMsgId, setTranslatingMsgId] = useState<string | null>(null);
   const [pendingTranscript, setPendingTranscript] = useState<string | null>(null);
+  const [isStoryModalOpen, setStoryModalOpen] = useState(false);
+  const [storyContent, setStoryContent] = useState<string | null>(null);
+  const [speakerInfo, setSpeakerInfo] = useState<any | null>(null);
+  const [isStoryLoading, setIsStoryLoading] = useState(false);
 
   const handleTranscript = useCallback((transcript: string) => {
     setPendingTranscript(transcript);
@@ -132,6 +139,25 @@ const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
     setIsHelpLoading(false);
   };
 
+  const handleGetStory = async () => {
+    setStoryModalOpen(true);
+    setIsStoryLoading(true);
+    try {
+      const result = await geminiService.getStory(scenario.title, scenario.systemPrompt);
+      if (result && result.story && result.speakerInfo) {
+        setStoryContent(result.story);
+        setSpeakerInfo(result.speakerInfo);
+      } else {
+        setStoryContent('Không thể lấy câu chuyện. Vui lòng thử lại.');
+        setSpeakerInfo(null);
+      }
+    } catch (e) {
+      setStoryContent('Không thể lấy câu chuyện. Vui lòng thử lại.');
+      setSpeakerInfo(null);
+    }
+    setIsStoryLoading(false);
+  };
+
   const handleTranslate = async (msgId: string, text: string) => {
     setTranslatingMsgId(msgId);
     try {
@@ -151,14 +177,23 @@ const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
     }, 0);
   };
   
+  const handleRequestMoreSuggestions = async (msgId: string, text: string) => {
+    setIsAiTyping(true);
+    const aiResult = await geminiService.sendMessage(text, scenario.title);
+    setMessages(prev => prev.map(m =>
+      m.id === msgId ? { ...m, suggestions: aiResult.suggestions } : m
+    ));
+    setIsAiTyping(false);
+  };
+  
   return (
     <div className="flex flex-col h-screen bg-slate-100 dark:bg-slate-900">
       <header className="bg-white dark:bg-slate-800 shadow-md p-4 flex items-center justify-between z-10">
-        <button onClick={onExit} className="text-slate-600 dark:text-slate-300 hover:text-blue-500 dark:hover:text-blue-400 transition-colors flex items-center">
+        <button onClick={onBackToHome} className="text-slate-600 dark:text-slate-300 hover:text-blue-500 dark:hover:text-blue-400 transition-colors flex items-center">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
           </svg>
-          Back to Scenarios
+          Back to Home
         </button>
         <div className="text-center">
           <h1 className="text-lg font-bold text-slate-800 dark:text-white">{scenario.title}</h1>
@@ -167,6 +202,9 @@ const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
         <div className="w-28 text-right flex items-center justify-end gap-2">
             <button onClick={handleGetHelp} className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" aria-label="Get help">
                 <HelpIcon className="w-6 h-6"/>
+            </button>
+            <button onClick={handleGetStory} className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" aria-label="Get story">
+                <BookIcon className="w-6 h-6"/>
             </button>
             <button onClick={() => setSettingsModalOpen(true)} className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" aria-label="Open settings">
                 <SettingsIcon className="w-6 h-6"/>
@@ -187,6 +225,7 @@ const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
               isTranslating={translatingMsgId === msg.id}
               isLastUserMessage={msg.sender === MessageSender.User && idx === messages.length - 2}
               onResendLastUserMessage={handleResendLastUserMessage}
+              onRequestMoreSuggestions={msg.sender === MessageSender.AI ? () => handleRequestMoreSuggestions(msg.id, msg.text) : undefined}
             />
           ))}
           <div ref={chatEndRef} />
@@ -255,6 +294,13 @@ const ChatView: React.FC<ChatViewProps> = ({ scenario, onExit }) => {
         selectedVoiceURI={selectedVoiceURI}
         onSelectVoice={selectVoice}
         onPreviewVoice={(text, uri) => speak(text, uri || undefined)}
+      />
+      <StoryModal
+        isOpen={isStoryModalOpen}
+        onClose={() => setStoryModalOpen(false)}
+        content={storyContent}
+        speakerInfo={speakerInfo}
+        isLoading={isStoryLoading}
       />
     </div>
   );

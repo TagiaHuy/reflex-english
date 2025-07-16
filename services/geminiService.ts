@@ -74,8 +74,8 @@ Reply as a natural English conversation partner in the scenario: "${scenarioTitl
 Recent chat:
 ${chatHistory || ''}
 
-Reply concisely. Also suggest 3 short, natural English sentences the user could say next. Respond in JSON:
-{"reply": "<your reply>", "suggestions": ["suggestion 1", "suggestion 2", "suggestion 3"]}
+Reply concisely. Also suggest 3 useful English words or phrases (not full sentences) the user could use in this context. Respond in JSON:
+{"reply": "<your reply>", "suggestions": ["word or phrase 1", "word or phrase 2", "word or phrase 3"]}
 `;
       const response: GenerateContentResponse = await this.chat.sendMessage({ message: prompt });
       let jsonStr = (response.text ?? '').trim();
@@ -269,6 +269,39 @@ Chỉ trả về JSON, không giải thích thêm.
       return null;
     } catch (error) {
       console.error("Error generating random scenario:", error);
+      return null;
+    }
+  }
+
+  public async getStory(scenarioTitle: string, systemPrompt: string): Promise<{ story: string, speakerInfo: { name: string, age: string, occupation: string, personality: string, funFact: string } } | null> {
+    const prompt = `Bạn là người kể chuyện. Hãy tạo một đoạn nhập vai cho ngữ cảnh sau:
+"${scenarioTitle}"
+Hướng dẫn AI: ${systemPrompt}
+
+Yêu cầu:
+- Viết một đoạn story ngắn (tiếng Anh) về bối cảnh hoặc nhân vật chính để người học nhập vai.
+- Tự tạo ra một số thông tin về người nói (speaker) phù hợp ngữ cảnh, gồm: name, age, occupation, personality (tính cách), funFact (một điều thú vị).
+- Trả về kết quả dưới dạng JSON với 2 trường:
+  - "story": đoạn văn tiếng Anh
+  - "speakerInfo": object gồm "name", "age", "occupation", "personality", "funFact" (tất cả tiếng Anh)
+Chỉ trả về JSON, không giải thích gì thêm.
+`;
+    try {
+      const response = await this.ai.models.generateContent({
+        model: this.model,
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          temperature: 0.8,
+        },
+      });
+      const parsed = this.parseJsonFromResponse(response.text ?? '');
+      if (parsed && parsed.story && parsed.speakerInfo) {
+        return parsed;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error getting story:', error);
       return null;
     }
   }

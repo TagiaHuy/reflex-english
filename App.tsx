@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import ScenarioSelector from './components/ScenarioSelector';
 import ChatView from './components/ChatView';
 import CreateScenarioModal from './components/CreateScenarioModal';
+import HomeScreen from './components/HomeScreen';
 import { SCENARIOS } from './constants';
 import type { Scenario } from './types';
 
@@ -9,6 +10,7 @@ const App: React.FC = () => {
   const [currentScenario, setCurrentScenario] = useState<Scenario | null>(null);
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
+  const [showHome, setShowHome] = useState(true);
   
   useEffect(() => {
     // Set dark mode based on user's system preference
@@ -41,6 +43,16 @@ const App: React.FC = () => {
     setCreateModalOpen(false);
   };
 
+  const handleDeleteScenario = (id: string) => {
+    setScenarios(prev => {
+      const updated = prev.filter(s => s.id !== id);
+      // Cập nhật localStorage chỉ cho custom scenarios
+      const customScenarios = updated.filter(s => s.id.startsWith('custom-'));
+      localStorage.setItem('customScenarios', JSON.stringify(customScenarios));
+      return updated;
+    });
+  };
+
   if (!process.env.API_KEY) {
       return (
         <div className="bg-slate-100 dark:bg-slate-900 h-screen flex items-center justify-center p-4">
@@ -59,13 +71,22 @@ const App: React.FC = () => {
 
   return (
     <div className="bg-white dark:bg-slate-900">
-      {currentScenario ? (
-        <ChatView scenario={currentScenario} onExit={handleExitScenario} />
+      {showHome ? (
+        <HomeScreen onStart={() => setShowHome(false)} />
+      ) : currentScenario ? (
+        <ChatView scenario={currentScenario} onExit={handleExitScenario} onBackToHome={() => {
+          setCurrentScenario(null);
+        }} />
       ) : (
         <ScenarioSelector 
           scenarios={scenarios} 
           onSelectScenario={handleSelectScenario} 
           onStartCreate={() => setCreateModalOpen(true)}
+          onBackToHome={() => {
+            setShowHome(true);
+            setCurrentScenario(null);
+          }}
+          onDeleteScenario={handleDeleteScenario}
         />
       )}
       <CreateScenarioModal 
